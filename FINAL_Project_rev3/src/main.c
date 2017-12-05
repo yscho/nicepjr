@@ -18,6 +18,8 @@
 #include "stm32f4xx_it.h"
 
 // Pin number define
+#define TRIG		GPIO_PIN_0
+#define ECHO		GPIO_PIN_1
 #define LED1		GPIO_PIN_2
 #define LED2		GPIO_PIN_3
 #define JOG_UP		GPIO_PIN_0
@@ -55,6 +57,8 @@ uint8_t UART_RxBuffer[RxBufferSize];
 enum {LED_ON, LED_OFF, MOTOR_ON, MOTOR_OFF, HT_GET};
 char *uartMsg[]={"LED_ON\r\n","LED_OFF\r\n","MOTOR_ON\r\n","MOTOR_OFF\r\n","HT_GET\r\n"};
 
+TIM_HandleTypeDef TimHandle2;
+
 GPIO_InitTypeDef GPIO_Init_Struct;
 
 I2C_HandleTypeDef I2C2Handle;		// I2C의 초기화를 위한 구조체형의 변수를 선언
@@ -63,6 +67,11 @@ I2C_HandleTypeDef I2C2Handle;		// I2C의 초기화를 위한 구조체형의 변수를 선언
 uint8_t TxBuffer[5];
 uint8_t RxBuffer[5];
 
+//온도 센서 용 전역 변수
+double curTemp; // Current Temp
+double setTemp; //Configure Temp
+//초음파
+unsigned long ultra_val =0;
 
 /* FUNCTION PROTOTYPE */
 void I2C_config(void);
@@ -139,6 +148,27 @@ void us_delay_int_count(volatile unsigned int nTime)
 {
 	nTime = (nTime * 12);
 	for(; nTime > 0; nTime--);
+}
+
+//;********************************** Ultra *****************************************
+//PC0 = tirg ....... PC1 = Echo
+int	open_Ultra(void)
+{
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+	GPIO_Init_Struct.Pin = TRIG;
+	GPIO_Init_Struct.Mode = GPIO_MODE_OUTPUT_PP;	// Alternate Function Push Pull 모드
+	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
+	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
+
+	GPIO_Init_Struct.Pin = ECHO; //PC1
+	GPIO_Init_Struct.Mode = GPIO_MODE_IT_RISING_FALLING;
+	GPIO_Init_Struct.Pull = GPIO_PULLDOWN  ;
+	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
+	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
+
+	HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+	return 0;
 }
 
 //;********************************** LED *****************************************
@@ -348,10 +378,33 @@ int UART4_config(void)		// UART2_TX(PA0), UART1_RX(PA1)
 
 	return 0;
 }
+int timer2_config(void)
+{
+	__HAL_RCC_TIM2_CLK_ENABLE();
+	TimHandle2.Instance 			= TIM2;						// TIM2 사용
+	TimHandle2.Init.Period 			= 300000 - 1;				// 업데이트 이밴드 발생시 ARR=999로 설정(100ms)
+	TimHandle2.Init.Prescaler 		= 84 - 1;					// Prescaler = 83로 설정(0.001ms)
+	TimHandle2.Init.ClockDivision	= TIM_CLOCKDIVISION_DIV1;	// division을 사용하지 않음
+	TimHandle2.Init.CounterMode 	= TIM_COUNTERMODE_UP;		// Up Counter 모드 설정
+	HAL_TIM_Base_Init(&TimHandle2);
+	HAL_TIM_Base_Start_IT(&TimHandle2);	/* Start Channel1 */
+
+	HAL_NVIC_SetPriority(TIM2_IRQn, 6, 0);	/* Set Interrupt Group Priority */
+	HAL_NVIC_EnableIRQ(TIM2_IRQn);	/* Enable the TIMx global Interrupt */
+
+	return 0;
+}
+
+int timer_initialize(void)
+{
+	timer2_config();	//범용 Timer TIM2
+	return 0;
+}
 
 //;*************************** board_initialize  ************************************
 int	board_initialize(void)
 {
+	open_Ultra();
 	open_led();			// PA2~PA3(AF Push Pull Mode)
 	open_dc_motor();	// PA6(AF Push Pull Mode), PB6~PB7 output
 	open_clcd();		// PC8~PC9, PC12~PC15 output
@@ -374,7 +427,7 @@ void BT_config()
 {
 	UART4_config();
 
-	strcpy(UART_TxBuffer,"AT+NAMESW32A_TEAM4");
+	strcpy(UART_TxBuffer,"AT+NAMESW32A_YS");
 	HAL_UART_Transmit(&UartHandle4, (uint8_t*)UART_TxBuffer, strlen(UART_TxBuffer), 0xFFFF);
 	ms_delay_int_count(2000);
 
@@ -384,18 +437,39 @@ void BT_config()
 
 int main(int argc, char* argv[])
 {
-	board_initialize();
+	board_initialize();	//open_Ultra	open_led	open_dc_motor  open_clcd
 	I2C_config();
 	USART1_config();
 	BT_config();
+	timer_initialize();
 
+	char clcd_buf[] = ""; //To char LED buffer
+
+	uint32_t ul_time=0;
+	//Temp Test for Char LCD
+	curTemp = 10;
+	setTemp = 20;
 
 	strcpy(UART_TxBuffer,"Bluetooth Ready\r\n");
 	HAL_UART_Transmit(&UartHandle1, (uint8_t*)UART_TxBuffer, strlen(UART_TxBuffer), 0xFFFF);
 
 	while (1)
 	{
+		ul_time = __HAL_TIM_GET_COUNTER(&TimHandle2);
+		if(ul_time>10){
+			HAL_GPIO_WritePin(GPIOC, TRIG, 0);
+		}
+
 		HAL_UART_Receive_IT(&UartHandle4, UART_RxBuffer,1);
+		//==========LCD 1st line print
+		CLCD_write(0, 0x80);
+		sprintf( clcd_buf, "ULTRA : %4d", curTemp) ;
+		clcd_put_string((uint8_t*)clcd_buf);
+
+		//==========LCD 2nd line print
+		CLCD_write(0, 0xC0);
+		sprintf(clcd_buf, "SETTEMP : %4d", setTemp);
+		clcd_put_string((uint8_t*)clcd_buf);
 	}
 }
 
@@ -445,3 +519,31 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 #pragma GCC diagnostic pop
 
 // ----------------------------------------------------------------------------
+/*인터럽트 루틴*/
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+	static uint32_t ult_time =0;
+	if(GPIO_Pin == ECHO){//PC1
+
+		if(HAL_GPIO_ReadPin(GPIOC, ECHO) == GPIO_PIN_SET)
+		{
+			ult_time =__HAL_TIM_GET_COUNTER(&TimHandle2);
+		}
+		else
+		{
+			ult_time = __HAL_TIM_GET_COUNTER(&TimHandle2)- ult_time ;
+			ultra_val = (unsigned long)(((ult_time/2)/2.9));
+		}
+	}
+	return;
+
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+	if(htim->Instance == TIM2){
+		// Interrupt PC1을 Rising 시킨다.
+		HAL_GPIO_WritePin(GPIOC, TRIG, 1);	//
+	}
+
+}
