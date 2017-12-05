@@ -40,38 +40,40 @@
 #define USART1_TX	GPIO_PIN_9
 #define USART1_RX	GPIO_PIN_10
 
-// ¿Â½Àµµ ¼¾¼­
+// ì˜¨ìŠµë„ ì„¼ì„œ
 #define HT_I2C_ADDR				0x40<<1
 #define I2C_ADDRESS				HT_I2C_ADDR
+// ì˜¨ìŠµë„ ì„¼ì„œ ì €ì¥ìš© ë³€ìˆ˜
+double curTemp;
+double setTemp;
+
+// UART í†µì‹ ì„ ìœ„í•œ ì •ì˜
+#define TxBufferSize	0xFF	// ì†¡ì‹  ë²„í¼ ì‚¬ì´ì¦ˆ ì •ì˜
+#define RxBufferSize	0xFF							// ìˆ˜ì‹  ë²„í¼ ì‚¬ì´ì¦ˆë¥¼ 0xFFë¡œ ì •ì˜
+
+// ì´ˆìŒíŒŒì„¼ì„œ
+unsigned long ultra_val =0;
+
+// íƒ€ì´ë¨¸
+TIM_HandleTypeDef TimHandle2, TimHandle4;
 
 
-// UART Åë½ÅÀ» À§ÇÑ Á¤ÀÇ
-#define TxBufferSize	0xFF	// ¼Û½Å ¹öÆÛ »çÀÌÁî Á¤ÀÇ
-#define RxBufferSize	0xFF							// ¼ö½Å ¹öÆÛ »çÀÌÁî¸¦ 0xFF·Î Á¤ÀÇ
-
-// UART Åë½Å¿ë º¯¼ö ¼±¾ğ
-UART_HandleTypeDef	UartHandle1;	// UARTÀÇ ÃÊ±âÈ­¸¦ À§ÇÑ ±¸Á¶Ã¼ÇüÀÇ º¯¼ö¸¦ ¼±¾ğ
+// UART í†µì‹ ìš© ë³€ìˆ˜ ì„ ì–¸
+UART_HandleTypeDef	UartHandle1;	// UARTì˜ ì´ˆê¸°í™”ë¥¼ ìœ„í•œ êµ¬ì¡°ì²´í˜•ì˜ ë³€ìˆ˜ë¥¼ ì„ ì–¸
 UART_HandleTypeDef	UartHandle4;	// Bluetooth
 char UART_TxBuffer[TxBufferSize];
 uint8_t UART_RxBuffer[RxBufferSize];
-enum {LED_ON, LED_OFF, MOTOR_ON, MOTOR_OFF, HT_GET};
-char *uartMsg[]={"LED_ON\r\n","LED_OFF\r\n","MOTOR_ON\r\n","MOTOR_OFF\r\n","HT_GET\r\n"};
-
-TIM_HandleTypeDef TimHandle2;
+enum {LED_ON, LED_OFF, FAN_ON, FAN_OFF, TEMP_UP, TEMP_DOWN};
+char *uartMsg[]={"LED_ON\r\n","LED_OFF\r\n","FAN_ON\r\n","FAN_OFF\r\n","TEMP_UP\r\n", "TEMP_DOWN\r\n"};
 
 GPIO_InitTypeDef GPIO_Init_Struct;
 
-I2C_HandleTypeDef I2C2Handle;		// I2CÀÇ ÃÊ±âÈ­¸¦ À§ÇÑ ±¸Á¶Ã¼ÇüÀÇ º¯¼ö¸¦ ¼±¾ğ
+I2C_HandleTypeDef I2C2Handle;		// I2Cì˜ ì´ˆê¸°í™”ë¥¼ ìœ„í•œ êµ¬ì¡°ì²´í˜•ì˜ ë³€ìˆ˜ë¥¼ ì„ ì–¸
 
-// I2C Åë½Å¿ë º¯¼ö ¼±¾ğ
+// I2C í†µì‹ ìš© ë³€ìˆ˜ ì„ ì–¸
 uint8_t TxBuffer[5];
 uint8_t RxBuffer[5];
 
-//¿Âµµ ¼¾¼­ ¿ë Àü¿ª º¯¼ö
-double curTemp; // Current Temp
-double setTemp; //Configure Temp
-//ÃÊÀ½ÆÄ
-unsigned long ultra_val =0;
 
 /* FUNCTION PROTOTYPE */
 void I2C_config(void);
@@ -82,35 +84,38 @@ void us_delay_int_count(volatile unsigned int nTime);
 int	open_led(void);
 int	open_dc_motor(void);
 int	dc_motor_cntl(uint8_t sel);
-int CLCD_write(unsigned char rs, char data);
-int clcd_put_string(uint8_t *str);
-int CLCD_init();
-int	CLCD_config(void);
 int	open_clcd(void);
+int	CLCD_config(void);
+int CLCD_init();
+int clcd_put_string(uint8_t *str);
+int CLCD_write(unsigned char rs, char data);
 int USART1_config(void);
 int UART4_config(void);
 int	board_initialize(void);
-void sprintfTemp(double v, int decimalDigits,char *buff);
+void sprintfTemp(char *buff,double v, int decimalDigits,int mode);
 void BT_config();
+int timer2_config(void);
+int timer4_config(void);
+int timer_initialize(void);
+int	open_Ultra(void);
 
-
-// -- I2CÀÇ ÃÊ±â¼³Á¤À» À§ÇÑ ÇÔ¼ö
+// -- I2Cì˜ ì´ˆê¸°ì„¤ì •ì„ ìœ„í•œ í•¨ìˆ˜
 void I2C_config(void)		// I2C2_SCL(PB10), I2C2_SDA(PB11)
 {
-	// I2CÀÇ Å¬·°À» È°¼ºÈ­
+	// I2Cì˜ í´ëŸ­ì„ í™œì„±í™”
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 	__HAL_RCC_I2C2_CLK_ENABLE();	// I2C2
 
-	// GPIO BÆ÷Æ® 8,9¹ø ÇÉÀ» I2C ÀüÈ¯±â´ÉÀ¸·Î ¼³Á¤
-	GPIO_Init_Struct.Pin		= GPIO_PIN_10 | GPIO_PIN_11;	// GPIO¿¡¼­ »ç¿ëÇÒ PIN ¼³Á¤
-	GPIO_Init_Struct.Mode		= GPIO_MODE_AF_OD;				// Alternate Function Open Drain ¸ğµå
+	// GPIO Bí¬íŠ¸ 8,9ë²ˆ í•€ì„ I2C ì „í™˜ê¸°ëŠ¥ìœ¼ë¡œ ì„¤ì •
+	GPIO_Init_Struct.Pin		= GPIO_PIN_10 | GPIO_PIN_11;	// GPIOì—ì„œ ì‚¬ìš©í•  PIN ì„¤ì •
+	GPIO_Init_Struct.Mode		= GPIO_MODE_AF_OD;				// Alternate Function Open Drain ëª¨ë“œ
 	GPIO_Init_Struct.Alternate	= GPIO_AF4_I2C2;				// I2C2 Alternate Function mapping
-	GPIO_Init_Struct.Pull		= GPIO_PULLUP;					// Pull Up ¸ğµå
+	GPIO_Init_Struct.Pull		= GPIO_PULLUP;					// Pull Up ëª¨ë“œ
 	GPIO_Init_Struct.Speed		= GPIO_SPEED_FREQ_VERY_HIGH;
 
 	HAL_GPIO_Init(GPIOB, &GPIO_Init_Struct);
 
-	// I2CÀÇ µ¿ÀÛ Á¶°Ç ¼³Á¤
+	// I2Cì˜ ë™ì‘ ì¡°ê±´ ì„¤ì •
 	I2C2Handle.Instance 			= I2C2;
 	I2C2Handle.Init.ClockSpeed 		= 400000;
 	I2C2Handle.Init.DutyCycle 		= I2C_DUTYCYCLE_16_9;
@@ -121,7 +126,7 @@ void I2C_config(void)		// I2C2_SCL(PB10), I2C2_SDA(PB11)
 	I2C2Handle.Init.GeneralCallMode	= I2C_GENERALCALL_DISABLE;
 	I2C2Handle.Init.NoStretchMode 	= I2C_NOSTRETCH_DISABLE;
 
-	// I2C ±¸¼ºÁ¤º¸¸¦ I2CxHandle¿¡ ¼³Á¤µÈ °ªÀ¸·Î ÃÊ±âÈ­ ÇÔ
+	// I2C êµ¬ì„±ì •ë³´ë¥¼ I2CxHandleì— ì„¤ì •ëœ ê°’ìœ¼ë¡œ ì´ˆê¸°í™” í•¨
 	HAL_I2C_Init(&I2C2Handle);
 }
 
@@ -137,7 +142,7 @@ int i2cGetTemp(void)
 	return temp_val;
 
 }
-/*Áö¿¬·çÆ¾*/
+/*ì§€ì—°ë£¨í‹´*/
 void ms_delay_int_count(volatile unsigned int nTime)
 {
 	nTime = (nTime * 14000);
@@ -150,33 +155,12 @@ void us_delay_int_count(volatile unsigned int nTime)
 	for(; nTime > 0; nTime--);
 }
 
-//;********************************** Ultra *****************************************
-//PC0 = tirg ....... PC1 = Echo
-int	open_Ultra(void)
-{
-	__HAL_RCC_GPIOC_CLK_ENABLE();
-	GPIO_Init_Struct.Pin = TRIG;
-	GPIO_Init_Struct.Mode = GPIO_MODE_OUTPUT_PP;	// Alternate Function Push Pull ¸ğµå
-	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
-	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
-
-	GPIO_Init_Struct.Pin = ECHO; //PC1
-	GPIO_Init_Struct.Mode = GPIO_MODE_IT_RISING_FALLING;
-	GPIO_Init_Struct.Pull = GPIO_PULLDOWN  ;
-	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
-	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
-
-	HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
-	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
-	return 0;
-}
-
 //;********************************** LED *****************************************
 int	open_led(void)
 {
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	GPIO_Init_Struct.Pin = LED1 | LED2;
-//	GPIO_Init_Struct.Mode = GPIO_MODE_AF_PP;	// Alternate Function Push Pull ¸ğµå
+//	GPIO_Init_Struct.Mode = GPIO_MODE_AF_PP;	// Alternate Function Push Pull ëª¨ë“œ
 //	GPIO_Init_Struct.Alternate = GPIO_AF2_TIM5;	// TIM5 Alternate Function mapping
 	GPIO_Init_Struct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_Init_Struct.Pull = GPIO_NOPULL;
@@ -236,8 +220,6 @@ int	dc_motor_cntl(uint8_t sel)
 }
 
 
-
-
 //;********************************** CLCD  *****************************************
 
 int CLCD_write(unsigned char rs, char data)
@@ -280,8 +262,8 @@ int clcd_put_string(uint8_t *str)
 int CLCD_init()
 {
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// CLCD_E = 0
-	CLCD_write(0, 0x33);	// 4ºñÆ® ¼³Á¤ Æ¯¼ö ¸í·É
-	CLCD_write(0, 0x32);	// 4ºñÆ® ¼³Á¤ Æ¯¼ö ¸í·É
+	CLCD_write(0, 0x33);	// 4ë¹„íŠ¸ ì„¤ì • íŠ¹ìˆ˜ ëª…ë ¹
+	CLCD_write(0, 0x32);	// 4ë¹„íŠ¸ ì„¤ì • íŠ¹ìˆ˜ ëª…ë ¹
 	CLCD_write(0, 0x28);	// _set_function
 	CLCD_write(0, 0x0F);	// _set_display
 	CLCD_write(0, 0x01);	// clcd_clear
@@ -317,11 +299,11 @@ int	open_clcd(void)
 //;********************************** UART  *****************************************
 int USART1_config(void)		// USART1_TX(PA9), USART1_RX(PA10)
 {
-	// UART1ÀÇ Å¬·°À» È°¼ºÈ­
+	// UART1ì˜ í´ëŸ­ì„ í™œì„±í™”
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_USART1_CLK_ENABLE();
 
-	// GPIO AÆ÷Æ® 9¹ø ÇÉÀ» USART Tx, 10¹ø ÇÉÀ» USART Rx·Î ¼³Á¤
+	// GPIO Aí¬íŠ¸ 9ë²ˆ í•€ì„ USART Tx, 10ë²ˆ í•€ì„ USART Rxë¡œ ì„¤ì •
 	GPIO_Init_Struct.Pin	= USART1_TX | USART1_RX;
 	GPIO_Init_Struct.Mode	= GPIO_MODE_AF_PP;
 	GPIO_Init_Struct.Pull	= GPIO_NOPULL;
@@ -329,7 +311,7 @@ int USART1_config(void)		// USART1_TX(PA9), USART1_RX(PA10)
 	GPIO_Init_Struct.Alternate = GPIO_AF7_USART1;
 	HAL_GPIO_Init(GPIOA, &GPIO_Init_Struct);
 
-	// UARTÀÇ µ¿ÀÛ Á¶°Ç ¼³Á¤
+	// UARTì˜ ë™ì‘ ì¡°ê±´ ì„¤ì •
 	UartHandle1.Instance		= USART1;
 	UartHandle1.Init.BaudRate	= 9600;
 	UartHandle1.Init.WordLength	= UART_WORDLENGTH_8B;
@@ -339,20 +321,20 @@ int USART1_config(void)		// USART1_TX(PA9), USART1_RX(PA10)
 	UartHandle1.Init.Mode		= UART_MODE_TX_RX;
 	UartHandle1.Init.OverSampling = UART_OVERSAMPLING_16;
 
-	// UART ±¸¼ºÁ¤º¸¸¦ UartHandle¿¡ ¼³Á¤µÈ °ªÀ¸·Î ÃÊ±âÈ­ ÇÔ
+	// UART êµ¬ì„±ì •ë³´ë¥¼ UartHandleì— ì„¤ì •ëœ ê°’ìœ¼ë¡œ ì´ˆê¸°í™” í•¨
 	HAL_UART_Init(&UartHandle1);
 
-	// TxBuffer¿¡ ÀúÀåµÇ¾î ÀÖ´Â ³»¿ëÀ» PC·Î º¸³½´Ù.
+	// TxBufferì— ì €ì¥ë˜ì–´ ìˆëŠ” ë‚´ìš©ì„ PCë¡œ ë³´ë‚¸ë‹¤.
 	return 0;
 }
 
 int UART4_config(void)		// UART2_TX(PA0), UART1_RX(PA1)
 {
-	// UART3ÀÇ Å¬·°À» È°¼ºÈ­
+	// UART3ì˜ í´ëŸ­ì„ í™œì„±í™”
 	__HAL_RCC_GPIOA_CLK_ENABLE();
 	__HAL_RCC_UART4_CLK_ENABLE();
 
-	// GPIO AÆ÷Æ® 2¹ø ÇÉÀ» USART Tx, 3¹ø ÇÉÀ» USART Rx·Î ¼³Á¤
+	// GPIO Aí¬íŠ¸ 2ë²ˆ í•€ì„ USART Tx, 3ë²ˆ í•€ì„ USART Rxë¡œ ì„¤ì •
 	GPIO_Init_Struct.Pin	= GPIO_PIN_0 | GPIO_PIN_1 ;
 	GPIO_Init_Struct.Mode	= GPIO_MODE_AF_PP;
 	GPIO_Init_Struct.Pull	= GPIO_NOPULL;
@@ -360,7 +342,7 @@ int UART4_config(void)		// UART2_TX(PA0), UART1_RX(PA1)
 	GPIO_Init_Struct.Alternate = GPIO_AF8_UART4;
 	HAL_GPIO_Init(GPIOA, &GPIO_Init_Struct);
 
-	// UARTÀÇ µ¿ÀÛ Á¶°Ç ¼³Á¤
+	// UARTì˜ ë™ì‘ ì¡°ê±´ ì„¤ì •
 	UartHandle4.Instance		= UART4;
 	UartHandle4.Init.BaudRate	= 9600;
 	UartHandle4.Init.WordLength	= UART_WORDLENGTH_8B;
@@ -370,34 +352,12 @@ int UART4_config(void)		// UART2_TX(PA0), UART1_RX(PA1)
 	UartHandle4.Init.Mode		= UART_MODE_TX_RX;
 	UartHandle4.Init.OverSampling = UART_OVERSAMPLING_16;
 
-	// UART ±¸¼ºÁ¤º¸¸¦ UartHandle¿¡ ¼³Á¤µÈ °ªÀ¸·Î ÃÊ±âÈ­ ÇÔ
+	// UART êµ¬ì„±ì •ë³´ë¥¼ UartHandleì— ì„¤ì •ëœ ê°’ìœ¼ë¡œ ì´ˆê¸°í™” í•¨
 	HAL_UART_Init(&UartHandle4);
 
 	HAL_NVIC_SetPriority(UART4_IRQn,0,0);
 	HAL_NVIC_EnableIRQ(UART4_IRQn);
 
-	return 0;
-}
-int timer2_config(void)
-{
-	__HAL_RCC_TIM2_CLK_ENABLE();
-	TimHandle2.Instance 			= TIM2;						// TIM2 »ç¿ë
-	TimHandle2.Init.Period 			= 300000 - 1;				// ¾÷µ¥ÀÌÆ® ÀÌ¹êµå ¹ß»ı½Ã ARR=999·Î ¼³Á¤(100ms)
-	TimHandle2.Init.Prescaler 		= 84 - 1;					// Prescaler = 83·Î ¼³Á¤(0.001ms)
-	TimHandle2.Init.ClockDivision	= TIM_CLOCKDIVISION_DIV1;	// divisionÀ» »ç¿ëÇÏÁö ¾ÊÀ½
-	TimHandle2.Init.CounterMode 	= TIM_COUNTERMODE_UP;		// Up Counter ¸ğµå ¼³Á¤
-	HAL_TIM_Base_Init(&TimHandle2);
-	HAL_TIM_Base_Start_IT(&TimHandle2);	/* Start Channel1 */
-
-	HAL_NVIC_SetPriority(TIM2_IRQn, 6, 0);	/* Set Interrupt Group Priority */
-	HAL_NVIC_EnableIRQ(TIM2_IRQn);	/* Enable the TIMx global Interrupt */
-
-	return 0;
-}
-
-int timer_initialize(void)
-{
-	timer2_config();	//¹ü¿ë Timer TIM2
 	return 0;
 }
 
@@ -408,10 +368,11 @@ int	board_initialize(void)
 	open_led();			// PA2~PA3(AF Push Pull Mode)
 	open_dc_motor();	// PA6(AF Push Pull Mode), PB6~PB7 output
 	open_clcd();		// PC8~PC9, PC12~PC15 output
+
 	return 0;
 }
 
-void sprintfTemp(double v, int decimalDigits,char *buff)
+void sprintfTemp(char *buff,double v, int decimalDigits,int mode)
 {
 	int i = 1;
 	int intPart, fractPart;
@@ -419,7 +380,10 @@ void sprintfTemp(double v, int decimalDigits,char *buff)
 	intPart = (int)v;
 	fractPart = (int)((v-(double)(int)v)*i);
 	if(fractPart < 0) fractPart *= -1;
-	sprintf(buff,"temp : %i.%i\r\n", intPart, fractPart);
+	if(mode == 0) // curTemp
+		sprintf(buff,"CUR_TEMP : %i.%i", intPart, fractPart);
+	else // setTemp
+		sprintf(buff,"SET_TEMP : %i.%i", intPart, fractPart);
 }
 
 
@@ -427,7 +391,7 @@ void BT_config()
 {
 	UART4_config();
 
-	strcpy(UART_TxBuffer,"AT+NAMESW32A_YS");
+	strcpy(UART_TxBuffer,"AT+NAMESW32A_TEAM4");
 	HAL_UART_Transmit(&UartHandle4, (uint8_t*)UART_TxBuffer, strlen(UART_TxBuffer), 0xFFFF);
 	ms_delay_int_count(2000);
 
@@ -435,23 +399,84 @@ void BT_config()
 	HAL_UART_Transmit(&UartHandle4, (uint8_t*)UART_TxBuffer, strlen(UART_TxBuffer), 0xFFFF);
 }
 
+
+int timer2_config(void)
+{
+	__HAL_RCC_TIM2_CLK_ENABLE();
+	TimHandle2.Instance 			= TIM2;						// TIM2 ì‚¬ìš©
+	TimHandle2.Init.Period 			= 300000 - 1;				// ì—…ë°ì´íŠ¸ ì´ë°´ë“œ ë°œìƒì‹œ ARR=999ë¡œ ì„¤ì •(100ms)
+	TimHandle2.Init.Prescaler 		= 84 - 1;					// Prescaler = 83ë¡œ ì„¤ì •(0.001ms)
+	TimHandle2.Init.ClockDivision	= TIM_CLOCKDIVISION_DIV1;	// divisionì„ ì‚¬ìš©í•˜ì§€ ì•ŠìŒ
+	TimHandle2.Init.CounterMode 	= TIM_COUNTERMODE_UP;		// Up Counter ëª¨ë“œ ì„¤ì •
+	HAL_TIM_Base_Init(&TimHandle2);
+	HAL_TIM_Base_Start_IT(&TimHandle2);	/* Start Channel1 */
+
+	HAL_NVIC_SetPriority(TIM2_IRQn, 6, 0);	/* Set Interrupt Group Priority */
+	HAL_NVIC_EnableIRQ(TIM2_IRQn);	/* Enable the TIMx global Interrupt */
+
+	return 0;
+}
+
+int timer4_config(void)
+{
+	__HAL_RCC_TIM4_CLK_ENABLE();
+	TimHandle4.Instance 			= TIM4;						// TIM4 ì‚¬ìš©
+	TimHandle4.Init.Period 			= 1000 - 1;					// 1s
+	TimHandle4.Init.Prescaler 		= 84000 - 1;				// Prescaler = 83999ë¡œ ì„¤ì •(1ms)
+	TimHandle4.Init.ClockDivision	= TIM_CLOCKDIVISION_DIV1;	// divisionì„ ì‚¬ìš©í•˜ì§€ ì•ŠìŒ
+	TimHandle4.Init.CounterMode 	= TIM_COUNTERMODE_UP;		// Up Counter ëª¨ë“œ ì„¤ì •
+	HAL_TIM_Base_Init(&TimHandle4);
+	HAL_TIM_Base_Start_IT(&TimHandle4);	/* Start Channel1 */
+
+	HAL_NVIC_SetPriority(TIM4_IRQn, 12, 10);	/* Set Interrupt Group Priority */
+	HAL_NVIC_EnableIRQ(TIM4_IRQn);	/* Enable the TIMx global Interrupt */
+
+	return 0;
+}
+
+int timer_initialize(void)
+{
+	timer2_config();	//ë²”ìš© Timer TIM2
+	timer4_config();	//ì˜¨ìŠµë„ì„¼ì„œ ê°’ ì½ì–´ì˜¤ê¸°.
+	return 0;
+}
+//;********************************** Ultra *****************************************
+//PC0 = tirg ....... PC1 = Echo
+int	open_Ultra(void)
+{
+	__HAL_RCC_GPIOC_CLK_ENABLE();
+	GPIO_Init_Struct.Pin = TRIG;
+	GPIO_Init_Struct.Mode = GPIO_MODE_OUTPUT_PP;	// Alternate Function Push Pull ëª¨ë“œ
+	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
+	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
+
+	GPIO_Init_Struct.Pin = ECHO; //PC1
+	GPIO_Init_Struct.Mode = GPIO_MODE_IT_RISING_FALLING;
+	GPIO_Init_Struct.Pull = GPIO_PULLDOWN  ;
+	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
+	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
+
+	HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
+	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+	return 0;
+}
+
 int main(int argc, char* argv[])
 {
-	board_initialize();	//open_Ultra	open_led	open_dc_motor  open_clcd
+	char clcd_buf[] = ""; //To char LED buffer
+	uint32_t ul_time=0;
+
+	board_initialize();
 	I2C_config();
 	USART1_config();
 	BT_config();
+
 	timer_initialize();
-
-	char clcd_buf[] = ""; //To char LED buffer
-
-	uint32_t ul_time=0;
-	//Temp Test for Char LCD
-	curTemp = 10;
-	setTemp = 20;
 
 	strcpy(UART_TxBuffer,"Bluetooth Ready\r\n");
 	HAL_UART_Transmit(&UartHandle1, (uint8_t*)UART_TxBuffer, strlen(UART_TxBuffer), 0xFFFF);
+
+	setTemp = 26.0;
 
 	while (1)
 	{
@@ -463,63 +488,16 @@ int main(int argc, char* argv[])
 		HAL_UART_Receive_IT(&UartHandle4, UART_RxBuffer,1);
 		//==========LCD 1st line print
 		CLCD_write(0, 0x80);
-		sprintf( clcd_buf, "ULTRA : %4d", curTemp) ;
+		sprintfTemp( clcd_buf,curTemp,2,0) ;
 		clcd_put_string((uint8_t*)clcd_buf);
 
 		//==========LCD 2nd line print
 		CLCD_write(0, 0xC0);
-		sprintf(clcd_buf, "SETTEMP : %4d", setTemp);
+		sprintfTemp( clcd_buf,setTemp,2,1) ;
 		clcd_put_string((uint8_t*)clcd_buf);
 	}
 }
 
-/*ÀÎÅÍ·´Æ® ·çÆ¾*/
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	int rxData;
-	double temp;
-	int temp_int;
-
-	if(huart->Instance==UART4)
-	{
-		rxData = UART_RxBuffer[0];
-		if(0<=rxData && (unsigned int)rxData <= sizeof(uartMsg)/sizeof(uartMsg[0]))
-			HAL_UART_Transmit(&UartHandle1, (uint8_t*)(uartMsg[rxData]),strlen(uartMsg[rxData]), 0xFFFF);
-
-
-		if(rxData==LED_ON)
-		{
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2|GPIO_PIN_3, 1);
-		}
-		else if(rxData==LED_OFF)
-		{
-			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2|GPIO_PIN_3, 0);
-		}
-		else if(rxData==MOTOR_ON)
-		{
-			HAL_GPIO_WritePin(GPIOB,MOTOR_P, 0);
-			HAL_GPIO_WritePin(GPIOB,MOTOR_N, 1);
-			HAL_GPIO_WritePin(GPIOA,MOTOR_PWM, 1);
-		}
-		else if(rxData==MOTOR_OFF)
-		{
-			HAL_GPIO_WritePin(GPIOB,MOTOR_P, 0);
-			HAL_GPIO_WritePin(GPIOB,MOTOR_N, 0);
-			HAL_GPIO_WritePin(GPIOA,MOTOR_PWM, 0);
-		}
-		else if(rxData==HT_GET)
-		{
-			temp_int = i2cGetTemp();
-			temp = (double)(temp_int)*175.72/65536-46.85;
-			sprintfTemp(temp,2,UART_TxBuffer);
-			HAL_UART_Transmit(&UartHandle1, (uint8_t*)UART_TxBuffer, strlen(UART_TxBuffer), 0xFFFF);
-		}
-	}
-}
-#pragma GCC diagnostic pop
-
-// ----------------------------------------------------------------------------
-/*ÀÎÅÍ·´Æ® ·çÆ¾*/
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	static uint32_t ult_time =0;
@@ -541,9 +519,75 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	if(htim->Instance == TIM2){
-		// Interrupt PC1À» Rising ½ÃÅ²´Ù.
+	double temp;
+	int temp_int;
+
+	if(htim->Instance == TIM2)
+	{
+		// Interrupt PC1ì„ Rising ì‹œí‚¨ë‹¤.
 		HAL_GPIO_WritePin(GPIOC, TRIG, 1);	//
+	}
+	else if(htim->Instance == TIM4)
+	{
+		temp_int = i2cGetTemp();
+		temp = (double)(temp_int)*175.72/65536-46.85;
+		curTemp = temp;
+
+		if(setTemp<curTemp)
+		{
+			dc_motor_cntl(1); // CCW
+		}
+		else
+		{
+			dc_motor_cntl(4); // stop
+		}
+
 	}
 
 }
+
+/*ì¸í„°ëŸ½íŠ¸ ë£¨í‹´*/
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	int rxData;
+
+	if(huart->Instance==UART4)
+	{
+		rxData = UART_RxBuffer[0];
+		if(0<=rxData && (unsigned int)rxData <= sizeof(uartMsg)/sizeof(uartMsg[0]))
+			HAL_UART_Transmit(&UartHandle1, (uint8_t*)(uartMsg[rxData]),strlen(uartMsg[rxData]), 0xFFFF);
+
+
+		if(rxData==LED_ON)
+		{
+			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2|GPIO_PIN_3, 1);
+		}
+		else if(rxData==LED_OFF)
+		{
+			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2|GPIO_PIN_3, 0);
+		}
+		else if(rxData==FAN_ON)
+		{
+			HAL_GPIO_WritePin(GPIOB,MOTOR_P, 0);
+			HAL_GPIO_WritePin(GPIOB,MOTOR_N, 1);
+			HAL_GPIO_WritePin(GPIOA,MOTOR_PWM, 1);
+		}
+		else if(rxData==FAN_OFF)
+		{
+			HAL_GPIO_WritePin(GPIOB,MOTOR_P, 0);
+			HAL_GPIO_WritePin(GPIOB,MOTOR_N, 0);
+			HAL_GPIO_WritePin(GPIOA,MOTOR_PWM, 0);
+		}
+		else if(rxData==TEMP_UP)
+		{
+			setTemp+=0.2;
+		}
+		else if(rxData==TEMP_DOWN)
+		{
+			setTemp-=0.2;
+		}
+	}
+}
+#pragma GCC diagnostic pop
+
+// ----------------------------------------------------------------------------
