@@ -7388,7 +7388,7 @@ END GROUP
 .debug_pubnames
  *(.debug_pubnames)
 
-.debug_info     0x00000000    0x15835
+.debug_info     0x00000000    0x15834
  *(.debug_info .gnu.linkonce.wi.*)
  .debug_info    0x00000000      0x8c7 ./system/src/stm32f4-hal/stm32f4xx_hal.o
  .debug_info    0x000008c7     0x1194 ./system/src/stm32f4-hal/stm32f4xx_hal_adc.o
@@ -7411,11 +7411,11 @@ END GROUP
  .debug_info    0x00010928      0x7b7 ./system/src/cortexm/exception_handlers.o
  .debug_info    0x000110df      0x4b9 ./system/src/cmsis/system_stm32f4xx.o
  .debug_info    0x00011598       0xd1 ./system/src/cmsis/vectors_stm32f405xx.o
- .debug_info    0x00011669     0x2a0e ./src/Final_main.o
- .debug_info    0x00014077      0x4e9 ./src/_initialize_hardware.o
- .debug_info    0x00014560       0xe5 ./src/stm32f4xx_hal_msp.o
- .debug_info    0x00014645      0xa52 ./src/stm32f4xx_it.o
- .debug_info    0x00015097      0x79e ./src/temp_and_rh.o
+ .debug_info    0x00011669     0x2a0d ./src/Final_main.o
+ .debug_info    0x00014076      0x4e9 ./src/_initialize_hardware.o
+ .debug_info    0x0001455f       0xe5 ./src/stm32f4xx_hal_msp.o
+ .debug_info    0x00014644      0xa52 ./src/stm32f4xx_it.o
+ .debug_info    0x00015096      0x79e ./src/temp_and_rh.o
 
 .debug_abbrev   0x00000000     0x2bbc
  *(.debug_abbrev)

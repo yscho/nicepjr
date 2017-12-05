@@ -139,8 +139,6 @@ int	open_Ultra(void)
 	__HAL_RCC_GPIOC_CLK_ENABLE();
 	GPIO_Init_Struct.Pin = TRIG;
 	GPIO_Init_Struct.Mode = GPIO_MODE_OUTPUT_PP;	// Alternate Function Push Pull 모드
-	//GPIO_Init_Struct.Alternate = GPIO_AF1_TIM2;	// TIM2 Alternate Function mapping
-	//GPIO_Init_Struct.Pull = GPIO_NOPULL;
 	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
 	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
 
@@ -149,10 +147,6 @@ int	open_Ultra(void)
 	GPIO_Init_Struct.Pull = GPIO_PULLDOWN  ;
 	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
 	HAL_GPIO_Init(GPIOC, &GPIO_Init_Struct);
-
-	/* Enable and set EXTI Line2 Interrupt to the lowest priority */
-	//HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-	//HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 	HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
