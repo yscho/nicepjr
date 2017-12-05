@@ -2,23 +2,13 @@
 #include "stm32f4xx_hal.h"
 #include "stm32f4xx_it.h"
 
-extern UART_HandleTypeDef		UartHandle4;	// Bluetooth
-extern TIM_HandleTypeDef 		TimHandle2;		// 타이머의 초기화용 구조체 변수를 선언
+extern UART_HandleTypeDef	UartHandle4;	// Bluetooth
+extern TIM_HandleTypeDef TimHandle2, TimHandle4;
+
 /******************************************************************************/
 /*            Cortex-M4 Processor Exceptions Handlers                         */
 /******************************************************************************/
 
-
-void TIM2_IRQHandler(void)
-{
-	HAL_TIM_IRQHandler(&TimHandle2);
-}
-
-
-void EXTI1_IRQHandler(void)
-{
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);//ultra Echo PC1
-}
 /**
   * @brief   This function handles NMI exception.
   * @param  None
@@ -143,6 +133,20 @@ void SysTick_Handler(void)
   * @retval None
   */
 
+void EXTI1_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);//ultra Echo PC1
+}
+
+void TIM2_IRQHandler(void)
+{
+	HAL_TIM_IRQHandler(&TimHandle2);
+}
+
+void TIM4_IRQHandler(void)
+{
+  HAL_TIM_IRQHandler(&TimHandle4);
+}
 
 void UART4_IRQHandler(void)
 {
