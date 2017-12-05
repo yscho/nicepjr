@@ -1,4 +1,4 @@
-system/src/stm32f4-hal/stm32f4xx_hal_dma_ex.d: \
+system/src/stm32f4-hal/stm32f4xx_hal_dma_ex.o: \
  ../system/src/stm32f4-hal/stm32f4xx_hal_dma_ex.c \
  ../system/include/stm32f4-hal/stm32f4xx_hal.h \
  ../include/stm32f4xx_hal_conf.h \

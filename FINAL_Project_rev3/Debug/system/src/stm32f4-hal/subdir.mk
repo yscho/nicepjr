@@ -72,11 +72,4 @@ system/src/stm32f4-hal/%.o: ../system/src/stm32f4-hal/%.c
 	@echo 'Finished building: $<'
 	@echo ' '
 
-system/src/stm32f4-hal/stm32f4xx_hal_dma_ex.o: ../system/src/stm32f4-hal/stm32f4xx_hal_dma_ex.c
-	@echo 'Building file: $<'
-	@echo 'Invoking: Cross ARM GNU C Compiler'
-	arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=soft -Og -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -ffreestanding -fno-move-loop-invariants -Wall -Wextra  -g3 -DDEBUG -DUSE_FULL_ASSERT -DTRACE -DOS_USE_TRACE_ITM -DSTM32F405xx -DUSE_HAL_DRIVER -DHSE_VALUE=25000000 -I"../include" -I"../system/include" -I"../system/include/cmsis" -I"../system/include/stm32f4-hal" -std=gnu11 -Wno-bad-function-cast -Wno-conversion -Wno-sign-conversion -Wno-unused-parameter -Wno-sign-compare -Wno-missing-prototypes -Wno-missing-declarations -MMD -MP -MF"$(@:%.o=%.d)" -MT"system/src/stm32f4-hal/stm32f4xx_hal_dma_ex.d" -c -o "$@" "$<"
-	@echo 'Finished building: $<'
-	@echo ' '
-
 
