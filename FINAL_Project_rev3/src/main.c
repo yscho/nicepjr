@@ -55,8 +55,13 @@ double setTemp;
 unsigned long ultra_val =0;
 
 // 타이머
-TIM_HandleTypeDef TimHandle2, TimHandle4;
+TIM_HandleTypeDef  TimHandle2, TimHandle4, TimHandle12;
+TIM_OC_InitTypeDef TIM_OCInit12;
 
+// PIEZO
+uint32_t PIEZO_Pulse[]	= {0,        3822,   3405,   3033,   2863,   2551,   2272,   2024,   1911}; //도레미파솔라시도
+char* PIEZO_clcd[]		= {"mute", "DO4 ", "RE4 ", "MI4 ", "FA4 ", "SO4 ", "LA4 ", "SI4 ", "DO5 "};
+uint32_t scale_val = 0;
 
 // UART 통신용 변수 선언
 UART_HandleTypeDef	UartHandle1;	// UART의 초기화를 위한 구조체형의 변수를 선언
@@ -96,8 +101,12 @@ void sprintfTemp(char *buff,double v, int decimalDigits,int mode);
 void BT_config();
 int timer2_config(void);
 int timer4_config(void);
+int timer12_config(void);
 int timer_initialize(void);
 int	open_Ultra(void);
+int	open_piezo(void);
+
+
 
 // -- I2C의 초기설정을 위한 함수
 void I2C_config(void)		// I2C2_SCL(PB10), I2C2_SDA(PB11)
@@ -368,7 +377,7 @@ int	board_initialize(void)
 	open_led();			// PA2~PA3(AF Push Pull Mode)
 	open_dc_motor();	// PA6(AF Push Pull Mode), PB6~PB7 output
 	open_clcd();		// PC8~PC9, PC12~PC15 output
-
+	open_piezo();
 	return 0;
 }
 
@@ -434,10 +443,32 @@ int timer4_config(void)
 	return 0;
 }
 
+int timer12_config(void)
+{
+	__HAL_RCC_TIM12_CLK_ENABLE();
+
+	/* Set TIMx instance */
+	TimHandle12.Instance 			= TIM12;						// TIM12 사용
+	TimHandle12.Init.Period 		= PIEZO_Pulse[scale_val] - 1;
+	TimHandle12.Init.Prescaler 		= 84 - 1;						// Prescaler = 83로 설정(1us)
+	TimHandle12.Init.ClockDivision 	= TIM_CLOCKDIVISION_DIV1;		// division을 사용하지 않음
+	TimHandle12.Init.CounterMode 	= TIM_COUNTERMODE_UP;			// Up Counter 모드 설정
+
+	/* Set TIMx PWM instance */
+	TIM_OCInit12.OCMode 		= TIM_OCMODE_PWM1;					// PWM mode 1 동작 모드 설정
+	TIM_OCInit12.Pulse 			= (PIEZO_Pulse[scale_val]/2) - 1;	// CCR의 설정값
+	HAL_TIM_PWM_Init(&TimHandle12);									// TIM PWM을 TimHandle에 설정된 값으로 초기화함
+	// TIM PWM의 Channel을  TIM_OCInit에 설정된 값으로 초기화함
+	HAL_TIM_PWM_ConfigChannel(&TimHandle12, &TIM_OCInit12, TIM_CHANNEL_2);
+
+	return 0;
+}
+
 int timer_initialize(void)
 {
 	timer2_config();	//범용 Timer TIM2
 	timer4_config();	//온습도센서 값 읽어오기.
+	timer12_config(); // PIEZO
 	return 0;
 }
 //;********************************** Ultra *****************************************
@@ -458,6 +489,19 @@ int	open_Ultra(void)
 
 	HAL_NVIC_SetPriority(EXTI1_IRQn, 1, 0);
 	HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+	return 0;
+}
+
+//;********************************** PIEZO *****************************************
+int	open_piezo(void)
+{
+	__HAL_RCC_GPIOB_CLK_ENABLE();
+	GPIO_Init_Struct.Pin = PIEZO;
+	GPIO_Init_Struct.Mode = GPIO_MODE_AF_PP;		// Alternate Function Push Pull 모드
+	GPIO_Init_Struct.Alternate = GPIO_AF9_TIM12;	// TIM12 Alternate Function mapping
+	GPIO_Init_Struct.Pull = GPIO_NOPULL;
+	GPIO_Init_Struct.Speed = GPIO_SPEED_HIGH;
+	HAL_GPIO_Init(GPIOB, &GPIO_Init_Struct);
 	return 0;
 }
 
@@ -495,6 +539,21 @@ int main(int argc, char* argv[])
 		CLCD_write(0, 0xC0);
 		sprintfTemp( clcd_buf,setTemp,2,1) ;
 		clcd_put_string((uint8_t*)clcd_buf);
+
+		if(ultra_val<200)
+		{
+			scale_val = 1+(scale_val+1)%5;
+			TimHandle12.Init.Period 		= PIEZO_Pulse[scale_val] - 1;
+			TIM_OCInit12.Pulse 			= (PIEZO_Pulse[scale_val]/2) - 1;
+			HAL_TIM_PWM_Init(&TimHandle12);
+			HAL_TIM_PWM_ConfigChannel(&TimHandle12, &TIM_OCInit12, TIM_CHANNEL_2);
+			HAL_TIM_PWM_Start(&TimHandle12, TIM_CHANNEL_2);
+		}
+		else
+		{
+			HAL_TIM_PWM_Stop(&TimHandle12, TIM_CHANNEL_2);
+		}
+
 	}
 }
 
@@ -511,6 +570,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		{
 			ult_time = __HAL_TIM_GET_COUNTER(&TimHandle2)- ult_time ;
 			ultra_val = (unsigned long)(((ult_time/2)/2.9));
+			sprintf(UART_TxBuffer,"Ultra val : %ld\r\n",ultra_val);
+			HAL_UART_Transmit(&UartHandle1, (uint8_t*)UART_TxBuffer, strlen(UART_TxBuffer), 0xFFFF);
 		}
 	}
 	return;
